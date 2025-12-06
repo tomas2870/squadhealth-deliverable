@@ -18,6 +18,7 @@ class BrowserBot:
 
         # set up auto-download for pdf
         self.download_dir = os.path.join(os.getcwd(), "downloaded_files")
+        os.makedirs(self.download_dir, exist_ok=True)
         prefs = {
             "download.default_directory": self.download_dir,
             "download.prompt_for_download": False,  # Disable download prompt
