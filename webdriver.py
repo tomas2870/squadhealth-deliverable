@@ -5,11 +5,8 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select, WebDriverWait
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from config import URL
-from pdf_processor import extract_text_from_pdf
-from pdf_llm_engine import PdfLLMEngine
 
 class BrowserBot:
     def __init__(self):
