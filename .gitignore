@@ -1,1 +1,4 @@
 .env
+chrome_profile/
+__pycache__/
+downloaded_files/
