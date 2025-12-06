@@ -4,10 +4,12 @@ import logging
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.ui import Select, WebDriverWait
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from config import URL
 from pdf_processor import extract_text_from_pdf
+from pdf_llm_engine import PdfLLMEngine
 
 class BrowserBot:
     def __init__(self):
@@ -70,11 +72,22 @@ class BrowserBot:
             elem = self.wait.until(
                 EC.visibility_of_element_located(self.APP_READY_LOCATOR)
             )
+            print("found", elem)
             return elem
         except:
+            print("failed")
             return
     
     def find_print_pdf(self):
+        # start from the top level
+        try:
+            self.driver.switch_to.default_content()
+        except:
+            pass
+
+        return self._find_print_pdf_recursive()
+
+    def _find_print_pdf_recursive(self):
         # try to find the button in the current document
         try:
             btn = self.driver.find_element(
@@ -90,7 +103,7 @@ class BrowserBot:
         for frame in frames:
             try:
                 self.driver.switch_to.frame(frame)
-                btn = self.find_print_pdf()
+                btn = self._find_print_pdf_recursive()
                 if btn is not None:
                     # leave driver inside the frame where we found it
                     return btn
@@ -131,23 +144,99 @@ class BrowserBot:
         btn = None
         while btn is None:
             btn = self.find_print_pdf()
+            print("button!", btn)
+        print("button found")
         btn.click()
 
-        pdf = self.wait_for_new_pdf()
-        extract_text_from_pdf(pdf)
+        return self.wait_for_new_pdf()
 
-    def fill_form(self):
-        print("hello")
+    def find_form_frame(self):
+        # start from the top level
+        try:
+            self.driver.switch_to.default_content()
+        except:
+            pass
+
+        return self._find_form_frame_recursive()
+
+    def _find_form_frame_recursive(self):
+        try:
+            form = self.driver.find_element(By.CSS_SELECTOR, "form")
+            return form
+        except:
+            pass
+
+        # otherwise, search all child iframes
+        frames = self.driver.find_elements(By.TAG_NAME, "iframe")
+        for frame in frames:
+            try:
+                self.driver.switch_to.frame(frame)
+                form = self._find_form_frame_recursive()
+                if form:
+                    return form
+                self.driver.switch_to.parent_frame()
+            except:
+                try:
+                    self.driver.switch_to.parent_frame()
+                except:
+                    pass
+
+        return False
+
+    def fill_form(self, engine):
+        form = self.find_form_frame()
+        answered = set()
+        
+        while True:
+            field_divs = set(form.find_elements(By.CSS_SELECTOR, "div.flex.flex-col"))
+            field_divs -= answered 
+            if not field_divs:
+                break
+            field_div = field_divs.pop()
+            answered.add(field_div)
+
+            question_field = field_div.find_element(By.TAG_NAME, "label")
+            print("Question: ", question_field.text)
+            answer_field = field_div.find_element(By.CSS_SELECTOR, "input, select")
+            print("Answer: ")
+
+            # get answer
+            response = engine.ask(question_field.text)
+
+            # print stuff out just to see
+            print("Response: ", response)
+
+            # fill out 
+            if answer_field.tag_name == "input":
+                answer_field.send_keys(response)
+            elif answer_field.tag_name == "select":
+                if response == "yes":
+                    Select(answer_field).select_by_visible_text("Yes")
+                elif response == "no":
+                    Select(answer_field).select_by_visible_text("No")
+                else:
+                    print(":(")
+            else:
+                print(":(")
+
+        # press submit
+        submit_button = form.find_element(By.TAG_NAME, "button")
+        submit_button.click()
 
     def close(self):
         self.driver.quit()
 
+
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-    
     bot = BrowserBot()
     try:
-        bot.obtain_pdf()
+        pdf_path = bot.obtain_pdf()
+
+        text = extract_text_from_pdf(pdf_path)
+        engine = PdfLLMEngine()
+        engine.set_document(text)
+
+        bot.fill_form(engine)
         
         # Keep browser open for inspection if needed
         # input("Session complete. Press Enter to close browser...")
