@@ -67,6 +67,12 @@ class BrowserBot:
         # wait method
         self.wait = WebDriverWait(self.driver, 30)
     
+    def start_session(self):
+        self.driver.get(URL)
+
+        self.wait_for_app()
+        print("waited")
+
     def wait_for_app(self):
         try:
             elem = self.wait.until(
@@ -137,10 +143,6 @@ class BrowserBot:
         return None
     
     def obtain_pdf(self):
-        self.driver.get(URL)
-
-        self.wait_for_app()
-        print("waited")
         btn = None
         while btn is None:
             btn = self.find_print_pdf()
@@ -225,22 +227,3 @@ class BrowserBot:
 
     def close(self):
         self.driver.quit()
-
-
-if __name__ == "__main__":
-    bot = BrowserBot()
-    try:
-        pdf_path = bot.obtain_pdf()
-
-        text = extract_text_from_pdf(pdf_path)
-        engine = PdfLLMEngine()
-        engine.set_document(text)
-
-        bot.fill_form(engine)
-        
-        # Keep browser open for inspection if needed
-        # input("Session complete. Press Enter to close browser...")
-        
-    except KeyboardInterrupt:
-        print("\nStopping bot...")
-        bot.close()
